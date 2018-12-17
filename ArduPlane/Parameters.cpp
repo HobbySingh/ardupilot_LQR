@@ -223,7 +223,7 @@ const AP_Param::Info Plane::var_info[] = {
     // @Param: NAV_CONTROLLER
     // @DisplayName: Navigation controller selection
     // @Description: Which navigation controller to enable. Currently the only navigation controller available is L1. From time to time other experimental controllers will be added which are selected using this parameter.
-    // @Values: 0:Default,1:L1Controller
+    // @Values: 0:Default,1:L1Controller,2:LQRController
     // @User: Standard
     GSCALAR(nav_controller,          "NAV_CONTROLLER",   AP_Navigation::CONTROLLER_L1),
 
@@ -1211,11 +1211,16 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DSPOILER_CROW_W2", 18, ParametersG2, crow_flap_weight2, 0),
     
+    // @Group: NAVLQR_
+    // @Path: ../libraries/AP_LQR_Control/AP_LQR_Control.cpp
+    AP_SUBGROUPINFO(LQR_controller, "NAVLQR_", 19, ParametersG2, AP_LQR_Control),
+    
     AP_GROUPEND
 };
 
 ParametersG2::ParametersG2(void) :
-    ice_control(plane.rpm_sensor)
+    ice_control(plane.rpm_sensor),
+    LQR_controller(&plane.TECS_controller)
 #if SOARING_ENABLED == ENABLED
     ,soaring_controller(plane.ahrs, plane.TECS_controller, plane.aparm)
 #endif
