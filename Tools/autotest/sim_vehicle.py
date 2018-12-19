@@ -22,6 +22,7 @@ import textwrap
 import time
 import shlex
 
+from MAVProxy.modules.lib import mp_util
 from pysim import vehicleinfo
 
 # List of open terminal windows for macosx
@@ -395,6 +396,7 @@ def find_location_by_name(autotest, locname):
     locations_userpath = os.environ.get('ARDUPILOT_LOCATIONS',
                                         get_user_locations_path())
     locations_filepath = os.path.join(autotest, "locations.txt")
+    swarminit_filepath = os.path.join(autotest, "swarminit.txt")
     comment_regex = re.compile("\s*#.*")
     for path in [locations_userpath, locations_filepath]:
         if not os.path.isfile(path):
@@ -408,6 +410,23 @@ def find_location_by_name(autotest, locname):
                     continue
                 (name, loc) = line.split("=")
                 if name == locname:
+                    if cmd_opts.swarm:
+                        (lat, lon, alt, heading)=loc.split(",")
+                        for path2 in [swarm_init_filepath]:
+                            if os.path.isfile(path2):
+                                with open(path2,'r') as swd:
+                                    for lines in swd:
+                                        if len(lines) == 0:
+                                            continue
+                                        (instance, offset) = lines.split("=")
+                                        if ((int)(instance) == (int)(cmd_opts.instance)):
+                                            (dist, heading) = offset.split(",")
+                                            g=mp_util.gps_newpos((float)(lat), (float)(lon), (float)(heading), (float)(dist))
+                                            loc=str(g[0])+","+str(g[1])+","+str(alt)+","+str(heading)
+                                            return loc
+                            g=mp_util.gps_newpos((float)(lat), (float)(lon), 90, 20*(int)(cmd_opts.instance))    
+                            loc=str(g[0])+","+str(g[1])+","+str(alt)+","+str(heading)
+                            return loc
                     return loc
 
     print("Failed to find location (%s)" % cmd_opts.location)
@@ -871,6 +890,10 @@ group_sim.add_option("", "--no-extra-ports",
                      dest='no_extra_ports',
                      default=False,
                      help="Disable setup of UDP 14550 and 14551 output")
+group_sim.add_option("-Z","--swarm",
+                     action='store_true',
+                     default=False,
+                     help="Use when implementing swarm")
 parser.add_option_group(group_sim)
 
 
