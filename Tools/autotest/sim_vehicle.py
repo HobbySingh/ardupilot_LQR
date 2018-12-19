@@ -412,7 +412,7 @@ def find_location_by_name(autotest, locname):
                 if name == locname:
                     if cmd_opts.swarm:
                         (lat, lon, alt, heading)=loc.split(",")
-                        for path2 in [swarm_init_filepath]:
+                        for path2 in [swarminit_filepath]:
                             if os.path.isfile(path2):
                                 with open(path2,'r') as swd:
                                     for lines in swd:
