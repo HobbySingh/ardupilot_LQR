@@ -33,7 +33,7 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
 
     // 12 ~ 16 were used by position, velocity and acceleration PIDs
 
-    // @Group: P_
+    // @Group: P
     // @Path: ../libraries/AC_AttitudeControl/AC_PosControl.cpp
     AP_SUBGROUPPTR(pos_control, "P", 17, QuadPlane, AC_PosControl),
 
@@ -382,6 +382,15 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
     // @Path: qautotune.cpp
     AP_SUBGROUPINFO(qautotune, "AUTOTUNE_",  6, QuadPlane, QAutoTune),
 #endif
+
+    // @Param: FW_LND_APR_RAD
+    // @DisplayName: Quadplane fixed wing landing approach radius
+    // @Description: This provides the radius used, when using a fixed wing landing approach. If set to 0 then the WP_LOITER_RAD will be selected.
+    // @Units: m
+    // @Range: 0 200
+    // @Increment: 5
+    // @User: Advanced
+    AP_GROUPINFO("FW_LND_APR_RAD", 7, QuadPlane, fw_land_approach_radius, 0),
 
     AP_GROUPEND
 };

@@ -165,6 +165,7 @@ class AutoTest(ABC):
         self.logfile = None
         self.max_set_rc_timeout = 0
         self.last_wp_load = 0
+        self.forced_post_test_sitl_reboots = 0
 
     @staticmethod
     def progress(text):
@@ -352,9 +353,12 @@ class AutoTest(ABC):
 
     def drain_mav(self):
         count = 0
+        tstart = time.time()
         while self.mav.recv_match(type='SYSTEM_TIME', blocking=False) is not None:
             count += 1
-        self.progress("Drained %u messages from mav" % count)
+        tdelta = time.time() - tstart
+        self.progress("Drained %u messages from mav (%f/s)" % (
+            count, count/float(tdelta)))
 
     #################################################
     # SIM UTILITIES
@@ -525,6 +529,7 @@ class AutoTest(ABC):
 
     def load_mission(self, filename):
         """Load a mission from a file to flight controller."""
+        self.progress("Loading mission (%s)" % filename)
         path = os.path.join(self.mission_directory(), filename)
         tstart = self.get_sim_time_cached()
         while True:
@@ -1453,6 +1458,11 @@ class AutoTest(ABC):
             return
         self.progress('PASSED: "%s"' % desc)
 
+    def check_sitl_reset(self):
+        if self.armed():
+            self.forced_post_test_sitl_reboots += 1
+            self.reboot_sitl() # that'll learn it
+
     def run_one_test(self, name, desc, test_function, interact=False):
         '''new-style run-one-test used by run_tests'''
         test_output_filename = self.buildlogs_path("%s-%s.txt" %
@@ -1478,6 +1488,7 @@ class AutoTest(ABC):
                 self.mavproxy.interact()
             tee.close()
             tee = None
+            self.check_sitl_reset()
             return
         self.context_pop()
         self.progress('PASSED: "%s"' % prettyname)
@@ -1509,6 +1520,46 @@ class AutoTest(ABC):
         """Initilialize autotest feature."""
         pass
 
+    def expect_command_ack(self, command):
+        m = self.mav.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
+        if m is None:
+            raise NotAchievedException()
+        if m.command != command:
+            raise ValueError()
+        if m.result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+            raise NotAchievedException()
+
+    def poll_home_position(self):
+        old = self.mav.messages.get("HOME_POSITION", None)
+        tstart = self.get_sim_time()
+        while True:
+            if self.get_sim_time() - tstart > 30:
+                raise NotAchievedException("Failed to poll home position")
+            self.mav.mav.command_long_send(
+                1,
+                1,
+                mavutil.mavlink.MAV_CMD_GET_HOME_POSITION,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0)
+            m = self.mav.recv_match(type='COMMAND_ACK', blocking=True, timeout=10)
+            if m is None:
+                continue
+            if m.command != mavutil.mavlink.MAV_CMD_GET_HOME_POSITION:
+                continue
+            if m.result != 0:
+                continue
+            break
+        m = self.mav.messages.get("HOME_POSITION", None)
+        if old is not None and m._timestamp == old._timestamp:
+            raise NotAchievedException("home position not updated")
+        return m
+
     def test_arm_feature(self):
         """Common feature to test."""
         self.context_push()
@@ -1522,22 +1573,25 @@ class AutoTest(ABC):
         self.set_throttle_zero()
         self.start_test("Test normal arm and disarm features")
         self.wait_ready_to_arm()
+        self.progress("default arm_vehicle() call")
         if not self.arm_vehicle():
             raise NotAchievedException("Failed to ARM")
+        self.progress("default disarm_vehicle() call")
         if not self.disarm_vehicle():
             raise NotAchievedException("Failed to DISARM")
+        self.progress("arm with mavproxy")
         if not self.mavproxy_arm_vehicle():
             raise NotAchievedException("Failed to ARM")
+        self.progress("disarm with mavproxy")
         if not self.mavproxy_disarm_vehicle():
             raise NotAchievedException("Failed to DISARM")
         if self.mav.mav_type != mavutil.mavlink.MAV_TYPE_SUBMARINE:
+            self.progress("arm with rc input")
             if not self.arm_motors_with_rc_input():
                 raise NotAchievedException("Failed to arm with RC input")
+            self.progress("disarm with rc input")
             if not self.disarm_motors_with_rc_input():
                 raise NotAchievedException("Failed to disarm with RC input")
-            # self.arm_vehicle()
-            # if not self.autodisarm_motors():
-            #     raise NotAchievedException("Did not autodisarm")
 
         # Disable auto disarm for next test
         # Rover and Sub don't have auto disarm
@@ -1548,13 +1602,10 @@ class AutoTest(ABC):
                                  mavutil.mavlink.MAV_TYPE_COAXIAL,
                                  mavutil.mavlink.MAV_TYPE_TRICOPTER]:
             self.set_parameter("DISARM_DELAY", 0)
-        if self.mav.mav_type == mavutil.mavlink.MAV_TYPE_FIXED_WING:
+        elif self.mav.mav_type == mavutil.mavlink.MAV_TYPE_FIXED_WING:
             self.set_parameter("LAND_DISARMDELAY", 0)
         # Sub has no 'switches'
-        if self.mav.mav_type == mavutil.mavlink.MAV_TYPE_SUBMARINE:
-            if not self.disarm_vehicle():
-                raise NotAchievedException("Failed to isarm")
-        else:
+        if self.mav.mav_type != mavutil.mavlink.MAV_TYPE_SUBMARINE:
             self.start_test("Test arm and disarm with switch")
             arming_switch = 7
             self.set_parameter("RC%d_OPTION" % arming_switch, 41)
@@ -1576,15 +1627,16 @@ class AutoTest(ABC):
             self.set_rc(3, 1800)
             try:
                 if self.arm_vehicle():
-                    raise NotAchievedException("Failed to NOT ARM")
+                    raise NotAchievedException("Armed when throttle too high")
             except AutoTestTimeoutException():
                 pass
             except ValueError:
                 pass
             if self.arm_motors_with_rc_input():
-                raise NotAchievedException("Failed to NOT ARM")
+                raise NotAchievedException(
+                    "Armed via RC when throttle too high")
             if self.arm_motors_with_switch(arming_switch):
-                raise NotAchievedException("Failed to NOT ARM")
+                raise NotAchievedException("Armed via RC when switch too high")
             self.set_throttle_zero()
             self.set_rc(arming_switch, 1000)
 
@@ -1593,18 +1645,21 @@ class AutoTest(ABC):
             self.start_test("Test arming failure with ARMING_RUDDER=0")
             self.set_parameter("ARMING_RUDDER", 0)
             if self.arm_motors_with_rc_input():
-                raise NotAchievedException("Failed to NOT ARM")
+                raise NotAchievedException(
+                    "Armed with rudder when ARMING_RUDDER=0")
             self.start_test("Test disarming failure with ARMING_RUDDER=0")
             self.arm_vehicle()
             if self.disarm_motors_with_rc_input():
-                raise NotAchievedException("Failed to NOT DISARM")
+                raise NotAchievedException(
+                    "Disarmed with rudder when ARMING_RUDDER=0")
             self.disarm_vehicle()
             self.wait_heartbeat()
             self.start_test("Test disarming failure with ARMING_RUDDER=1")
             self.set_parameter("ARMING_RUDDER", 1)
             self.arm_vehicle()
             if self.disarm_motors_with_rc_input():
-                raise NotAchievedException("Failed to NOT ARM")
+                raise NotAchievedException(
+                    "Disarmed with rudder with ARMING_RUDDER=1")
             self.disarm_vehicle()
             self.wait_heartbeat()
             self.set_parameter("ARMING_RUDDER", 2)
@@ -1618,9 +1673,11 @@ class AutoTest(ABC):
             self.start_test("Test arming failure with interlock enabled")
             self.set_rc(interlock_channel, 2000)
             if self.arm_motors_with_rc_input():
-                raise NotAchievedException("Failed to NOT ARM")
+                raise NotAchievedException(
+                    "Armed with RC input when interlock enabled")
             if self.arm_motors_with_switch(arming_switch):
-                raise NotAchievedException("Failed to NOT ARM")
+                raise NotAchievedException(
+                    "Armed with switch when interlock enabled")
             self.disarm_vehicle()
             self.wait_heartbeat()
             self.set_rc(arming_switch, 1000)
@@ -1749,6 +1806,14 @@ class AutoTest(ABC):
             sr = self.sitl_streamrate()
             self.mavproxy.send("set streamrate %u\n" % sr)
             raise e
+
+    def clear_mission(self):
+        self.mavproxy.send("wp clear\n")
+        self.mavproxy.send('wp list\n')
+        self.mavproxy.expect('Requesting [0-9]+ waypoints')
+        num_wp = mavwp.MAVWPLoader().count()
+        if num_wp != 0:
+            raise NotAchievedException("Failed to clear mission")
 
     def test_gripper(self):
         self.context_push()
@@ -1928,7 +1993,6 @@ class AutoTest(ABC):
             self.wait_heartbeat()
             self.progress("Setting up RC parameters")
             self.set_rc_default()
-            self.set_rc(3, 1000)
 
             for test in tests:
                 (name, desc, func) = test
@@ -1950,6 +2014,13 @@ class AutoTest(ABC):
     def tests(self):
         return []
 
+    def post_tests_announcements(self):
+        if self.forced_post_test_sitl_reboots != 0:
+            print("Had to force-reset SITL %u times" %
+                  (self.forced_post_test_sitl_reboots,))
+
     def autotest(self):
         """Autotest used by ArduPilot autotest CI."""
-        return self.run_tests(self.tests())
+        ret = self.run_tests(self.tests())
+        self.post_tests_announcements()
+        return ret

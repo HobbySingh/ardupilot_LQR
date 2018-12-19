@@ -145,15 +145,15 @@ int16_t GCS_MAVLINK_Rover::vfr_hud_throttle() const
     return rover.g2.motors.get_throttle();
 }
 
-void Rover::send_rangefinder(mavlink_channel_t chan)
+void GCS_MAVLINK_Rover::send_rangefinder() const
 {
     float distance_cm;
     float voltage;
     bool got_one = false;
 
     // report smaller distance of all rangefinders
-    for (uint8_t i=0; i<rangefinder.num_sensors(); i++) {
-        AP_RangeFinder_Backend *s = rangefinder.get_backend(i);
+    for (uint8_t i=0; i<rover.rangefinder.num_sensors(); i++) {
+        AP_RangeFinder_Backend *s = rover.rangefinder.get_backend(i);
         if (s == nullptr) {
             continue;
         }
@@ -301,13 +301,14 @@ uint32_t GCS_MAVLINK_Rover::telem_delay() const
     return static_cast<uint32_t>(rover.g.telem_delay);
 }
 
+bool GCS_MAVLINK_Rover::vehicle_initialised() const
+{
+    return rover.control_mode != &rover.mode_initializing;
+}
+
 // try to send a message, return false if it won't fit in the serial tx buffer
 bool GCS_MAVLINK_Rover::try_send_message(enum ap_message id)
 {
-    if (telemetry_delayed()) {
-        return false;
-    }
-
     // if we don't have at least 0.2ms remaining before the main loop
     // wants to fire then don't send a mavlink message. We want to
     // prioritise the main flight control loop over communications
@@ -319,17 +320,14 @@ bool GCS_MAVLINK_Rover::try_send_message(enum ap_message id)
 
     switch (id) {
 
-    case MSG_EXTENDED_STATUS1:
+    case MSG_SYS_STATUS:
         // send extended status only once vehicle has been initialised
         // to avoid unnecessary errors being reported to user
-        if (initialised) {
-            if (PAYLOAD_SIZE(chan, SYS_STATUS) +
-                PAYLOAD_SIZE(chan, POWER_STATUS) > comm_get_txspace(chan)) {
-                return false;
-            }
-            rover.send_sys_status(chan);
-            send_power_status();
+        if (!vehicle_initialised()) {
+            return true;
         }
+        CHECK_PAYLOAD_SIZE(SYS_STATUS);
+        rover.send_sys_status(chan);
         break;
 
     case MSG_NAV_CONTROLLER_OUTPUT:
@@ -340,13 +338,6 @@ bool GCS_MAVLINK_Rover::try_send_message(enum ap_message id)
     case MSG_SERVO_OUT:
         CHECK_PAYLOAD_SIZE(RC_CHANNELS_SCALED);
         rover.send_servo_out(chan);
-        break;
-
-    case MSG_RANGEFINDER:
-        CHECK_PAYLOAD_SIZE(RANGEFINDER);
-        rover.send_rangefinder(chan);
-        send_distance_sensor();
-        send_proximity();
         break;
 
     case MSG_RPM:
@@ -479,7 +470,8 @@ static const ap_message STREAM_RAW_SENSORS_msgs[] = {
     MSG_SENSOR_OFFSETS
 };
 static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
-    MSG_EXTENDED_STATUS1, // SYS_STATUS, POWER_STATUS
+    MSG_SYS_STATUS,
+    MSG_POWER_STATUS,
     MSG_MEMINFO,
     MSG_CURRENT_WAYPOINT,
     MSG_GPS_RAW,
@@ -502,7 +494,9 @@ static const ap_message STREAM_RC_CHANNELS_msgs[] = {
 };
 static const ap_message STREAM_EXTRA1_msgs[] = {
     MSG_ATTITUDE,
-    MSG_SIMSTATE, // SIMSTATE, AHRS2
+    MSG_SIMSTATE,
+    MSG_AHRS2,
+    MSG_AHRS3,
     MSG_PID_TUNING,
 };
 static const ap_message STREAM_EXTRA2_msgs[] = {
@@ -513,6 +507,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_HWSTATUS,
     MSG_WIND,
     MSG_RANGEFINDER,
+    MSG_DISTANCE_SENSOR,
     MSG_SYSTEM_TIME,
     MSG_BATTERY2,
     MSG_BATTERY_STATUS,
@@ -1178,7 +1173,7 @@ void Rover::mavlink_delay_cb()
     if (tnow - last_1hz > 1000) {
         last_1hz = tnow;
         gcs().send_message(MSG_HEARTBEAT);
-        gcs().send_message(MSG_EXTENDED_STATUS1);
+        gcs().send_message(MSG_SYS_STATUS);
     }
     if (tnow - last_50hz > 20) {
         last_50hz = tnow;

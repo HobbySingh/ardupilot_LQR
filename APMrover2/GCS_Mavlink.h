@@ -30,6 +30,8 @@ protected:
 
     bool persist_streamrates() const override { return true; }
 
+    bool vehicle_initialised() const override;
+
 private:
 
     void handleMessage(mavlink_message_t * msg) override;
@@ -45,5 +47,7 @@ private:
     MAV_STATE system_status() const override;
 
     int16_t vfr_hud_throttle() const override;
+
+    void send_rangefinder() const override;
 
 };

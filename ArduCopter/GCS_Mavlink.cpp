@@ -254,13 +254,13 @@ uint32_t GCS_MAVLINK_Copter::telem_delay() const
     return (uint32_t)(copter.g.telem_delay);
 }
 
+bool GCS_MAVLINK_Copter::vehicle_initialised() const {
+    return copter.ap.initialised;
+}
+
 // try to send a message, return false if it wasn't sent
 bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 {
-    if (telemetry_delayed()) {
-        return false;
-    }
-
 #if HIL_MODE != HIL_MODE_SENSORS
     // if we don't have at least 250 micros remaining before the main loop
     // wants to fire then don't send a mavlink message. We want to
@@ -277,17 +277,14 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 
     switch(id) {
 
-    case MSG_EXTENDED_STATUS1:
+    case MSG_SYS_STATUS:
         // send extended status only once vehicle has been initialised
         // to avoid unnecessary errors being reported to user
-        if (copter.ap.initialised) {
-            if (PAYLOAD_SIZE(chan, SYS_STATUS) +
-                PAYLOAD_SIZE(chan, POWER_STATUS) > comm_get_txspace(chan)) {
-                return false;
-            }
-            copter.send_sys_status(chan);
-            send_power_status();
+        if (!vehicle_initialised()) {
+            return true;
         }
+        CHECK_PAYLOAD_SIZE(SYS_STATUS);
+        copter.send_sys_status(chan);
         break;
 
     case MSG_NAV_CONTROLLER_OUTPUT:
@@ -445,7 +442,8 @@ static const ap_message STREAM_RAW_SENSORS_msgs[] = {
     MSG_SENSOR_OFFSETS
 };
 static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
-    MSG_EXTENDED_STATUS1, // SYS_STATUS, POWER_STATUS
+    MSG_SYS_STATUS,
+    MSG_POWER_STATUS,
     MSG_MEMINFO,
     MSG_CURRENT_WAYPOINT, // MISSION_CURRENT
     MSG_GPS_RAW,
@@ -466,7 +464,9 @@ static const ap_message STREAM_RC_CHANNELS_msgs[] = {
 };
 static const ap_message STREAM_EXTRA1_msgs[] = {
     MSG_ATTITUDE,
-    MSG_SIMSTATE, // SIMSTATE, AHRS2
+    MSG_SIMSTATE,
+    MSG_AHRS2,
+    MSG_AHRS3,
     MSG_PID_TUNING // Up to four PID_TUNING messages are sent, depending on GCS_PID_MASK parameter
 };
 static const ap_message STREAM_EXTRA2_msgs[] = {
@@ -477,6 +477,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_HWSTATUS,
     MSG_SYSTEM_TIME,
     MSG_RANGEFINDER,
+    MSG_DISTANCE_SENSOR,
 #if AP_TERRAIN_AVAILABLE && AC_TERRAIN
     MSG_TERRAIN,
 #endif
@@ -1443,7 +1444,7 @@ void Copter::mavlink_delay_cb()
     if (tnow - last_1hz > 1000) {
         last_1hz = tnow;
         gcs_send_heartbeat();
-        gcs().send_message(MSG_EXTENDED_STATUS1);
+        gcs().send_message(MSG_SYS_STATUS);
     }
     if (tnow - last_50hz > 20) {
         last_50hz = tnow;

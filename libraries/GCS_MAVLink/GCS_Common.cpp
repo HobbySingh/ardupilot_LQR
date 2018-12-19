@@ -194,6 +194,10 @@ void GCS_MAVLINK::send_meminfo(void)
 // report power supply status
 void GCS_MAVLINK::send_power_status(void)
 {
+    if (!vehicle_initialised()) {
+        // avoid unnecessary errors being reported to user
+        return;
+    }
     mavlink_msg_power_status_send(chan,
                                   hal.analogin->board_voltage() * 1000,
                                   hal.analogin->servorail_voltage() * 1000,
@@ -271,16 +275,19 @@ void GCS_MAVLINK::send_distance_sensor(const AP_RangeFinder_Backend *sensor, con
         sensor->orientation(),                   // direction the sensor faces from MAV_SENSOR_ORIENTATION enum
         0);                                      // Measurement covariance in centimeters, 0 for unknown / invalid readings
 }
-
-bool GCS_MAVLINK::send_distance_sensor() const
+// send any and all distance_sensor messages.  This starts by sending
+// any distance sensors not used by a Proximity sensor, then sends the
+// proximity sensor ones.
+void GCS_MAVLINK::send_distance_sensor() const
 {
     RangeFinder *rangefinder = RangeFinder::get_singleton();
     if (rangefinder == nullptr) {
-        return true; // this is wrong, but pretend we sent data and don't requeue
+        return;
     }
 
-    // if we have a proximity backend that utilizes rangefinders cull sending them here,
-    // and allow the later proximity code to manage them
+    // if we have a proximity backend that utilizes rangefinders cull
+    // sending them here, and allow the later proximity code to manage
+    // them
     bool filter_possible_proximity_sensors = false;
     AP_Proximity *proximity = AP_Proximity::get_singleton();
     if (proximity != nullptr) {
@@ -292,7 +299,9 @@ bool GCS_MAVLINK::send_distance_sensor() const
     }
 
     for (uint8_t i = 0; i < RANGEFINDER_MAX_INSTANCES; i++) {
-        CHECK_PAYLOAD_SIZE(DISTANCE_SENSOR);
+        if (!HAVE_PAYLOAD_SPACE(chan, DISTANCE_SENSOR)) {
+            return;
+        }
         AP_RangeFinder_Backend *sensor = rangefinder->get_backend(i);
         if (sensor == nullptr) {
             continue;
@@ -303,10 +312,11 @@ bool GCS_MAVLINK::send_distance_sensor() const
             send_distance_sensor(sensor, i);
         }
     }
-    return true;
+
+    send_proximity();
 }
 
-void GCS_MAVLINK::send_rangefinder_downward() const
+void GCS_MAVLINK::send_rangefinder() const
 {
     RangeFinder *rangefinder = RangeFinder::get_singleton();
     if (rangefinder == nullptr) {
@@ -322,11 +332,11 @@ void GCS_MAVLINK::send_rangefinder_downward() const
             s->voltage_mv() * 0.001f);
 }
 
-bool GCS_MAVLINK::send_proximity() const
+void GCS_MAVLINK::send_proximity() const
 {
     AP_Proximity *proximity = AP_Proximity::get_singleton();
     if (proximity == nullptr || proximity->get_status() == AP_Proximity::Proximity_NotConnected) {
-        return true; // this is wrong, but pretend we sent data and don't requeue
+        return; // this is wrong, but pretend we sent data and don't requeue
     }
 
     const uint16_t dist_min = (uint16_t)(proximity->distance_min() * 100.0f); // minimum distance the sensor can measure in centimeters
@@ -335,7 +345,9 @@ bool GCS_MAVLINK::send_proximity() const
     AP_Proximity::Proximity_Distance_Array dist_array;
     if (proximity->get_horizontal_distances(dist_array)) {
         for (uint8_t i = 0; i < PROXIMITY_MAX_DIRECTION; i++) {
-            CHECK_PAYLOAD_SIZE(DISTANCE_SENSOR);
+            if (!HAVE_PAYLOAD_SPACE(chan, DISTANCE_SENSOR)) {
+                return;
+            }
             mavlink_msg_distance_sensor_send(
                     chan,
                     AP_HAL::millis(),                               // time since system boot
@@ -352,7 +364,9 @@ bool GCS_MAVLINK::send_proximity() const
     // send upward distance
     float dist_up;
     if (proximity->get_upward_distance(dist_up)) {
-        CHECK_PAYLOAD_SIZE(DISTANCE_SENSOR);
+        if (!HAVE_PAYLOAD_SPACE(chan, DISTANCE_SENSOR)) {
+            return;
+        }
         mavlink_msg_distance_sensor_send(
                 chan,
                 AP_HAL::millis(),                                         // time since system boot
@@ -364,7 +378,6 @@ bool GCS_MAVLINK::send_proximity() const
                 MAV_SENSOR_ROTATION_PITCH_90,                             // direction upwards
                 0);                                                       // Measurement covariance in centimeters, 0 for unknown / invalid readings
     }
-    return true;
 }
 
 // report AHRS2 state
@@ -374,7 +387,8 @@ void GCS_MAVLINK::send_ahrs2()
     const AP_AHRS &ahrs = AP::ahrs();
     Vector3f euler;
     struct Location loc {};
-    if (ahrs.get_secondary_attitude(euler)) {
+    if (ahrs.get_secondary_attitude(euler) ||
+        ahrs.get_secondary_position(loc)) {
         mavlink_msg_ahrs2_send(chan,
                                euler.x,
                                euler.y,
@@ -383,11 +397,18 @@ void GCS_MAVLINK::send_ahrs2()
                                loc.lat,
                                loc.lng);
     }
-    const AP_AHRS_NavEKF &_ahrs = reinterpret_cast<const AP_AHRS_NavEKF&>(ahrs);
-    const NavEKF2 &ekf2 = _ahrs.get_NavEKF2_const();
+#endif
+}
+
+void GCS_MAVLINK::send_ahrs3()
+{
+#if AP_AHRS_NAVEKF_AVAILABLE
+    const NavEKF2 &ekf2 = AP::ahrs_navekf().get_NavEKF2_const();
     if (ekf2.activeCores() > 0 &&
         HAVE_PAYLOAD_SPACE(chan, AHRS3)) {
+        struct Location loc {};
         ekf2.getLLH(loc);
+        Vector3f euler;
         ekf2.getEulerAngles(-1,euler);
         mavlink_msg_ahrs3_send(chan,
                                euler.x,
@@ -860,7 +881,8 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
         { MAVLINK_MSG_ID_HEARTBEAT,             MSG_HEARTBEAT},
         { MAVLINK_MSG_ID_ATTITUDE,              MSG_ATTITUDE},
         { MAVLINK_MSG_ID_GLOBAL_POSITION_INT,   MSG_LOCATION},
-        { MAVLINK_MSG_ID_SYS_STATUS,            MSG_EXTENDED_STATUS1},
+        { MAVLINK_MSG_ID_SYS_STATUS,            MSG_SYS_STATUS},
+        { MAVLINK_MSG_ID_POWER_STATUS,          MSG_POWER_STATUS},
         { MAVLINK_MSG_ID_MEMINFO,               MSG_MEMINFO},
         { MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT, MSG_NAV_CONTROLLER_OUTPUT},
         { MAVLINK_MSG_ID_MISSION_CURRENT,       MSG_CURRENT_WAYPOINT},
@@ -885,9 +907,12 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
         { MAVLINK_MSG_ID_FENCE_STATUS,          MSG_FENCE_STATUS},
         { MAVLINK_MSG_ID_AHRS,                  MSG_AHRS},
         { MAVLINK_MSG_ID_SIMSTATE,              MSG_SIMSTATE},
+        { MAVLINK_MSG_ID_AHRS2,                 MSG_AHRS2},
+        { MAVLINK_MSG_ID_AHRS3,                 MSG_AHRS3},
         { MAVLINK_MSG_ID_HWSTATUS,              MSG_HWSTATUS},
         { MAVLINK_MSG_ID_WIND,                  MSG_WIND},
         { MAVLINK_MSG_ID_RANGEFINDER,           MSG_RANGEFINDER},
+        { MAVLINK_MSG_ID_DISTANCE_SENSOR,       MSG_DISTANCE_SENSOR},
             // request also does report:
         { MAVLINK_MSG_ID_TERRAIN_REQUEST,       MSG_TERRAIN},
         { MAVLINK_MSG_ID_BATTERY2,              MSG_BATTERY2},
@@ -1059,6 +1084,9 @@ bool GCS_MAVLINK::do_try_send_message(const ap_message id)
     const bool in_delay_callback = hal.scheduler->in_delay_callback();
     if (in_delay_callback && !should_send_message_in_delay_callback(id)) {
         return true;
+    }
+    if (telemetry_delayed()) {
+        return false;
     }
 #if GCS_DEBUG_SEND_MESSAGE_TIMINGS
     void *data = hal.scheduler->disable_interrupts_save();
@@ -3631,10 +3659,6 @@ void GCS_MAVLINK::send_mount_status() const
 
 bool GCS_MAVLINK::try_send_message(const enum ap_message id)
 {
-    if (telemetry_delayed()) {
-        return false;
-    }
-
     bool ret = true;
 
     switch(id) {
@@ -3704,9 +3728,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
 
     case MSG_RANGEFINDER:
         CHECK_PAYLOAD_SIZE(RANGEFINDER);
-        send_rangefinder_downward();
-        ret = send_distance_sensor();
-        ret = ret && send_proximity();
+        send_rangefinder();
+        break;
+
+    case MSG_DISTANCE_SENSOR:
+        send_distance_sensor();
         break;
 
     case MSG_CAMERA_FEEDBACK:
@@ -3759,6 +3785,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     case MSG_POSITION_TARGET_GLOBAL_INT:
         CHECK_PAYLOAD_SIZE(POSITION_TARGET_GLOBAL_INT);
         send_position_target_global_int();
+        break;
+
+    case MSG_POWER_STATUS:
+        CHECK_PAYLOAD_SIZE(POWER_STATUS);
+        send_power_status();
         break;
 
     case MSG_RADIO_IN:
@@ -3814,8 +3845,16 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     case MSG_SIMSTATE:
         CHECK_PAYLOAD_SIZE(SIMSTATE);
         send_simstate();
+        break;
+
+    case MSG_AHRS2:
         CHECK_PAYLOAD_SIZE(AHRS2);
         send_ahrs2();
+        break;
+
+    case MSG_AHRS3:
+        CHECK_PAYLOAD_SIZE(AHRS3);
+        send_ahrs3();
         break;
 
     case MSG_AHRS:

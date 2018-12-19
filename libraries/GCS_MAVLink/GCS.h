@@ -41,7 +41,8 @@ enum ap_message : uint8_t {
     MSG_HEARTBEAT,
     MSG_ATTITUDE,
     MSG_LOCATION,
-    MSG_EXTENDED_STATUS1,
+    MSG_SYS_STATUS,
+    MSG_POWER_STATUS,
     MSG_MEMINFO,
     MSG_NAV_CONTROLLER_OUTPUT,
     MSG_CURRENT_WAYPOINT,
@@ -67,9 +68,12 @@ enum ap_message : uint8_t {
     MSG_FENCE_STATUS,
     MSG_AHRS,
     MSG_SIMSTATE,
+    MSG_AHRS2,
+    MSG_AHRS3,
     MSG_HWSTATUS,
     MSG_WIND,
     MSG_RANGEFINDER,
+    MSG_DISTANCE_SENSOR,
     MSG_TERRAIN,
     MSG_BATTERY2,
     MSG_CAMERA_FEEDBACK,
@@ -182,10 +186,13 @@ public:
     void send_battery_status(const AP_BattMonitor &battery,
                              const uint8_t instance) const;
     bool send_battery_status() const;
-    bool send_distance_sensor() const;
-    void send_rangefinder_downward() const;
-    bool send_proximity() const;
+    void send_distance_sensor() const;
+    // send_rangefinder sends only if a downward-facing instance is
+    // found.  Rover overrides this!
+    virtual void send_rangefinder() const;
+    void send_proximity() const;
     void send_ahrs2();
+    void send_ahrs3();
     void send_system_time();
     void send_radio_in();
     void send_raw_imu();
@@ -235,9 +242,6 @@ public:
     
     // return true if channel is private
     bool is_private(void) const { return is_private(chan); }
-
-    // send queued parameters if needed
-    void send_queued_parameters(void);
 
     /*
       send a MAVLink message to all components with this vehicle's system id
@@ -406,6 +410,8 @@ protected:
     bool try_send_mission_message(enum ap_message id);
     void send_hwstatus();
     void handle_data_packet(mavlink_message_t *msg);
+
+    virtual bool vehicle_initialised() const { return true; }
 
     // these two methods are called after current_loc is updated:
     virtual int32_t global_position_int_alt() const;
