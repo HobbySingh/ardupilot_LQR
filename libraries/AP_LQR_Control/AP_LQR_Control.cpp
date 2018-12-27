@@ -42,6 +42,14 @@ const AP_Param::GroupInfo AP_LQR_Control::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("Q1_VAL",   4, AP_LQR_Control, _q1_val, 0),
 
+    // @Param: Q1_LIM
+    // @DisplayName: MAXIMUM PERMISSIBLE VALUE of Q1 squared
+    // @Description: The limit of Q1 to be used. Use no limit if zero. Divide by 100 before use. Use in relative to minimum turning radius if -1.
+    // @Range: -1 1000
+    // @Increment: 5
+    // @User: Advanced
+    AP_GROUPINFO("Q1_LIM",   5, AP_LQR_Control, _q1_lim, -1),
+
     AP_GROUPEND
 };
 
@@ -71,6 +79,7 @@ float AP_LQR_Control::get_yaw_sensor_cd()
 
 float AP_LQR_Control::get_gs_angle_cd()
 {
+    Vector2f _groundspeed_vector = _ahrs.groundspeed_vector();
     if (_reverse) {
         return wrap_180_cd(18000 + RadiansToCentiDegrees(atan2f(_groundspeed_vector.y, _groundspeed_vector.x)));
     }
@@ -246,11 +255,29 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
     //Caluclate adaptive gains
     float q1= sqrtf(float((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
     
+    float min_turn_rad = 2*groundspeed;
+    
     if(_q1_val != 0)
     {
         q1 = _q1_val*0.01;
     }
     
+    if(_q1_lim > 0)
+    {
+        if(q1 > (_q1_lim * 0.01))
+        {
+            q1 = _q1_lim * 0.01;
+        }
+    }
+    if(_q1_lim == -1)
+    {
+        float q1_lim = sqrtf(float((_max_xtrack*0.01)/((_max_xtrack*0.01)-min_turn_rad)));
+        if(q1 > q1_lim )
+        {
+            q1 = q1_lim;
+        }
+    }
+        
     //Calculate the approach velocity towards path
     float si = get_gs_angle_cd()*0.01;
     float si_p = (get_bearing_cd(prev_WP,next_WP))*0.01;
@@ -306,6 +333,22 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
     if(_q1_val != 0)
     {
         q1 = _q1_val*0.01;
+    }
+    
+    if(_q1_lim > 0)
+    {
+        if(q1 > (_q1_lim * 0.01))
+        {
+            q1 = _q1_lim * 0.01;
+        }
+    }
+    if(_q1_lim == -1)
+    {
+        float q1_lim = sqrtf(float((_max_xtrack*0.01)/((_max_xtrack*0.01)-min_turn_rad)));
+        if(q1 > q1_lim )
+        {
+            q1 = q1_lim;
+        }
     }
     
     //Compute velocity of approach towards desired path
