@@ -69,6 +69,14 @@ float AP_LQR_Control::get_yaw_sensor_cd()
     return _ahrs.yaw_sensor;
 }
 
+float AP_LQR_Control::get_gs_angle_cd()
+{
+    if (_reverse) {
+        return wrap_180_cd(18000 + RadiansToCentiDegrees(atan2f(_groundspeed_vector.y, _groundspeed_vector.x)));
+    }
+    return RadiansToCentiDegrees(atan2f(_groundspeed_vector.y, _groundspeed_vector.x));
+}
+
 /*
   return the bank angle needed to achieve tracking from the last
   update_*() operation
@@ -244,7 +252,7 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
     }
     
     //Calculate the approach velocity towards path
-    float si = RadiansToCentiDegrees(atan2f(_groundspeed_vector.y, _groundspeed_vector.x))*0.01;
+    float si = get_gs_angle_cd()*0.01;
     float si_p = (get_bearing_cd(prev_WP,next_WP))*0.01;
     float temp_sin=sinf(radians(si - si_p));
     float v_d= groundSpeed * temp_sin;
@@ -301,7 +309,7 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
     }
     
     //Compute velocity of approach towards desired path
-    float si = RadiansToCentiDegrees(atan2f(_groundspeed_vector.y, _groundspeed_vector.x))*0.01;
+    float si = get_gs_angle_cd()*0.01;
     // check if vehicle is not very far from the desired circular path
     if (fabsf(_crosstrack_error) < (min_turn_rad))
     {
@@ -358,7 +366,7 @@ void AP_LQR_Control::update_heading_hold(int32_t navigation_heading_cd)
         _groundspeed_vector = Vector2f(cosf(get_yaw_rad()), sinf(get_yaw_rad())) * groundSpeed;
     }
 
-    float si = RadiansToCentiDegrees(atan2f(_groundspeed_vector.y, _groundspeed_vector.x))*0.01;
+    float si = get_gs_angle_cd()*0.01;
     float si_p = (_target_bearing_cd)*0.01;
     float temp_sin = sinf(radians(si - si_p));
     float v_d = groundSpeed * temp_sin;
