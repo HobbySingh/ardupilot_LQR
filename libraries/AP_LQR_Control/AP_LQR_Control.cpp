@@ -79,7 +79,7 @@ float AP_LQR_Control::get_yaw_sensor_cd()
 
 float AP_LQR_Control::get_gs_angle_cd()
 {
-    const AP_AHRS &_ahrs = AP::ahrs();
+    AP_AHRS &_ahrs = AP::ahrs();
     Vector2f _groundspeed_vector = _ahrs.groundspeed_vector();
     if (_reverse) {
         return wrap_180_cd(18000 + RadiansToCentiDegrees(atan2f(_groundspeed_vector.y, _groundspeed_vector.x)));
