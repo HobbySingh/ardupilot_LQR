@@ -32,7 +32,7 @@ const AP_Param::GroupInfo AP_LQR_Control::var_info[] = {
     // @Range: 1 10000
     // @Increment: 10
     // @User: Advanced
-    AP_GROUPINFO("Q2_VAL",   3, AP_LQR_Control, _q2_val, 100),
+    AP_GROUPINFO("Q2_VAL",   3, AP_LQR_Control, _q2_val, 50),
 
     // @Param: Q1_VAL
     // @DisplayName: VALUE of Q1
@@ -253,7 +253,8 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
     float u =  - ((q1*_crosstrack_error)+(sqrtf((float)((_q2_val*0.01)+(2*q1)))*v_d));
     
     _latAccDem= u;
-
+    _bearing_error = radians(si - si_p);
+    _nav_bearing = radians(si_p);
     
     // Waypoint capture status is always false during waypoint following
     _WPcircle = false;
@@ -310,6 +311,9 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
         float v_d= groundSpeed * temp_sin;
         //Compute desired lateral acceleration
         u = ((q1*_crosstrack_error)-(sqrtf((float)((_q2_val*0.01)+(2*q1)))*v_d)+groundSpeed*si_p_dot);
+        _WPcircle = true;
+        _bearing_error = radians(si - si_p);
+        _nav_bearing = radians(si_p);
     }
     
     //lead towards center if vehicle is very far from circular path until crosstrack error < minimum turning radius
@@ -323,6 +327,9 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
         float temp_sin=sinf(radians(si - si_p));
         float v_d= groundSpeed * temp_sin;
         u = - (sqrtf((float)((_q2_val*0.01)+(2*q1)))*v_d);
+        _WPcircle = false;
+        _bearing_error = radians(si - si_p);
+        _nav_bearing = radians(si_p);
     }
 
     _latAccDem = u;
@@ -338,6 +345,7 @@ void AP_LQR_Control::update_heading_hold(int32_t navigation_heading_cd)
 
     // copy to _target_bearing_cd and _nav_bearing
     _target_bearing_cd = wrap_180_cd(navigation_heading_cd);
+    _nav_bearing = radians(navigation_heading_cd * 0.01f);
 
     Vector2f _groundspeed_vector = _ahrs.groundspeed_vector();
 
@@ -355,8 +363,9 @@ void AP_LQR_Control::update_heading_hold(int32_t navigation_heading_cd)
     float temp_sin = sinf(radians(si - si_p));
     float v_d = groundSpeed * temp_sin;
     float u =  - (sqrtf((float)(_q2_val*0.01))*v_d);
-    
+    _bearing_error = radians(si - si_p);
     _latAccDem = u;
+    _WPcircle = false;
 
     _data_is_stale = false; // status are correctly updated with current waypoint data
 }
