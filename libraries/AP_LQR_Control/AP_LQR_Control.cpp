@@ -256,7 +256,7 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
     //Caluclate adaptive gains
     float q1= sqrtf(float((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
     
-    float min_turn_rad = 2*groundspeed;
+    float min_turn_rad = 2*groundSpeed;
     
     if(_q1_val != 0)
     {
