@@ -109,4 +109,5 @@ private:
     bool _reverse = false;
     float get_yaw_rad();
     float get_yaw_sensor_cd();
+    float get_gs_angle_cd();
 };
