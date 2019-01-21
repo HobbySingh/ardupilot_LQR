@@ -597,9 +597,10 @@ def start_vehicle(binary, autotest, opts, stuff, loc):
         progress("Adding parameters from (%s)" % (str(opts.add_param_file),))
     if path is not None:
         cmd.extend(["--defaults", path])
+    if opts.sysid is not None:
+        cmd.extend(["--sysid", str(opts.sysid)])
     if opts.mcast:
         cmd.extend(["--uartA mcast:"])
-
     run_in_terminal_window(autotest, cmd_name, cmd)
 
 
@@ -913,6 +914,10 @@ group_sim.add_option("-Z", "--swarm",
 group_sim.add_option("--flash-storage",
                      action='store_true',
                      help="enable use of flash storage emulation")
+group_sim.add_option("", "--sysid",
+                     type='int',
+                     default=None,
+                     help="Set SYSID_THISMAV")
 parser.add_option_group(group_sim)
 
 
