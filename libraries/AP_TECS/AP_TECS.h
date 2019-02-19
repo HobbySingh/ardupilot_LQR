@@ -315,6 +315,8 @@ private:
 
     float _distance_beyond_land_wp;
 
+    Vector2f _vel_xy;
+
     // internal variables to be logged
     struct {
         float SKE_weighting;
@@ -370,3 +372,4 @@ private:
     // current time constant
     float timeConstant(void) const;
 };
+

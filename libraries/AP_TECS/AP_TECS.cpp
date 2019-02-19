@@ -291,11 +291,14 @@ void AP_TECS::update_50hz(void)
     if (_ahrs.get_velocity_NED(velned)) {
         // if possible use the EKF vertical velocity
         _climb_rate = -velned.z;
+        _vel_xy.x = velned.x;
+        _vel_xy.y = velned.y; 
     } else {
         /*
           use a complimentary filter to calculate climb_rate. This is
           designed to minimise lag
          */
+        _vel_xy = _ahrs.groundspeed_vector();
         const float baro_alt = AP::baro().get_altitude();
         // Get height acceleration
         float hgt_ddot_mea = -(_ahrs.get_accel_ef().z + GRAVITY_MSS);
@@ -864,6 +867,19 @@ void AP_TECS::_update_pitch(void)
     // Calculate pitch demand from specific energy balance signals
     _pitch_dem_unc = (temp + _integSEB_state) / gainInv;
 
+    float dist = _hgt_dem_adj - _height;
+    float dist_dot = _climb_rate;
+
+    float long_acc = dist - 1.732* dist_dot;
+
+    float gs_xy = _vel_xy.length();
+
+    _pitch_dem_unc = _last_pitch_dem + _DT * long_acc/gs_xy;
+
+    //_pitch_dem_unc = 0;
+
+    hal.console->printf("long acc : %f \n", long_acc);
+
     // Constrain pitch demand
     _pitch_dem = constrain_float(_pitch_dem_unc, _PITCHminf, _PITCHmaxf);
 
@@ -1105,3 +1121,4 @@ void AP_TECS::update_pitch_throttle(int32_t hgt_dem_cm,
                                            (double)logging.SEB_delta,
                                            (double)load_factor);
 }
+
