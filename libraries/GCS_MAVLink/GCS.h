@@ -193,6 +193,7 @@ public:
     // found.  Rover overrides this!
     virtual void send_rangefinder() const;
     void send_proximity() const;
+    virtual void send_nav_controller_output() const = 0;
     void send_ahrs2();
     void send_ahrs3();
     void send_system_time();
@@ -280,6 +281,8 @@ public:
     // vehicle subclass cpp files should define this:
     static const struct stream_entries all_stream_entries[];
 
+    virtual uint64_t capabilities() const;
+
 protected:
 
     virtual bool in_hil_mode() const { return false; }
@@ -298,7 +301,6 @@ protected:
     virtual MAV_MODE base_mode() const = 0;
     virtual uint32_t custom_mode() const = 0;
     virtual MAV_STATE system_status() const = 0;
-    virtual void get_sensor_status_flags(uint32_t &present, uint32_t &enabled, uint32_t &health) = 0;
 
     bool            waypoint_receiving; // currently receiving
     // the following two variables are only here because of Tracker
@@ -771,6 +773,15 @@ public:
 
     // update uart pass-thru
     void update_passthru();
+
+    void get_sensor_status_flags(uint32_t &present, uint32_t &enabled, uint32_t &health);
+
+protected:
+
+    uint32_t control_sensors_present;
+    uint32_t control_sensors_enabled;
+    uint32_t control_sensors_health;
+    virtual void update_sensor_status_flags(void) = 0;
 
 private:
 

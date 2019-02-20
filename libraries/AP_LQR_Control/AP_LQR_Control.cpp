@@ -42,14 +42,6 @@ const AP_Param::GroupInfo AP_LQR_Control::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("Q1_VAL",   4, AP_LQR_Control, _q1_val, 0),
 
-    // @Param: Q1_LIM
-    // @DisplayName: MAXIMUM PERMISSIBLE VALUE of Q1 squared
-    // @Description: The limit of Q1 to be used. Use no limit if zero. Divide by 100 before use. Use in relative to minimum turning radius if -1.
-    // @Range: -1 1000
-    // @Increment: 5
-    // @User: Advanced
-    AP_GROUPINFO("Q1_LIM",   5, AP_LQR_Control, _q1_lim, -1),
-
     AP_GROUPEND
 };
 
@@ -256,22 +248,11 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
     //Caluclate adaptive gains
     float q1= sqrtf(float((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
     
-    //Calculate minimum turning radius as function of groundspeed
-    float min_turn_rad = 2*groundSpeed;
-    
-    if (_q1_val != 0) {
+    if(_q1_val != 0)
+    {
         q1 = _q1_val*0.01;
     }
     
-    if (_q1_lim > 0) {
-        q1 = MIN(q1, _q1_lim * 0.01);
-    }
-    
-    if (_q1_lim == -1) {
-        float q1_lim = sqrtf(float((_max_xtrack*0.01)/((_max_xtrack*0.01)-min_turn_rad)));
-        q1 = MIN(q1, q1_lim);
-    }
-        
     //Calculate the approach velocity towards path
     float si = get_gs_angle_cd()*0.01;
     float si_p = (get_bearing_cd(prev_WP,next_WP))*0.01;
@@ -312,7 +293,6 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
     
     //Calculate rate change of heading of path
     float si_p_dot=groundSpeed/location_difference.length();
-    //Calculate perpendicular distance from path, for reporting
     _crosstrack_error = location_difference.length() - radius;
     
     //Set minimum turn radius equal to twice the groundspeed
@@ -325,17 +305,9 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
     //Compute adaptive gains
     float q1= sqrtf((float)((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
     
-    if (_q1_val != 0) {
+    if(_q1_val != 0)
+    {
         q1 = _q1_val*0.01;
-    }
-    
-    if (_q1_lim > 0) {
-        q1 = MIN(q1, _q1_lim * 0.01);
-    }
-    
-    if (_q1_lim == -1) {
-        float q1_lim = sqrtf(float((_max_xtrack*0.01)/((_max_xtrack*0.01)-min_turn_rad)));
-        q1 = MIN(q1, q1_lim);
     }
     
     //Compute velocity of approach towards desired path
@@ -349,7 +321,6 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
         float v_d= groundSpeed * temp_sin;
         //Compute desired lateral acceleration
         u = ((q1*_crosstrack_error)-(sqrtf((float)((_q2_val*0.01)+(2*q1)))*v_d)+groundSpeed*si_p_dot);
-        //Set loiter target reached
         _WPcircle = true;
         _bearing_error = radians(si - si_p);
         _nav_bearing = radians(si_p);
@@ -358,15 +329,13 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
     //lead towards center if vehicle is very far from circular path until crosstrack error < minimum turning radius
     else
     {
-        //Calculate heading to the loiter target
         float si_p = (_target_bearing_cd*0.01);
-        if (_crosstrack_error > 0) {
-            //Calculate heading towards the target track, opposite to center
+        if (_crosstrack_error > 0)
+        {
             si_p = si_p+180;
         }
         float temp_sin=sinf(radians(si - si_p));
         float v_d= groundSpeed * temp_sin;
-        //Compute desired lateral acceleration
         u = - (sqrtf((float)((_q2_val*0.01)+(2*q1)))*v_d);
         _WPcircle = false;
         _bearing_error = radians(si - si_p);

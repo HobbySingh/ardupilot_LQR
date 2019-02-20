@@ -417,11 +417,6 @@ private:
 #if OSD_ENABLED == ENABLED
     AP_OSD osd;
 #endif
-    
-    // Variables for extended status MAVLink messages
-    uint32_t control_sensors_present;
-    uint32_t control_sensors_enabled;
-    uint32_t control_sensors_health;
 
     // Altitude
     // The cm/s we are moving up or down based on filtered data - Positive = UP
@@ -658,9 +653,6 @@ private:
     // baro_ground_effect.cpp
     void update_ground_effect_detector(void);
 
-    // capabilities.cpp
-    void init_capabilities(void);
-
     // commands.cpp
     void update_home_from_EKF();
     void set_home_to_current_location_inflight();
@@ -718,7 +710,6 @@ private:
 
     // GCS_Mavlink.cpp
     void gcs_send_heartbeat(void);
-    void send_nav_controller_output(mavlink_channel_t chan);
     void send_rpm(mavlink_channel_t chan);
 
     // heli.cpp
@@ -830,7 +821,6 @@ private:
     void accel_cal_update(void);
     void init_proximity();
     void update_proximity();
-    void update_sensor_status_flags(void);
     void init_visual_odom();
     void winch_init();
     void winch_update();

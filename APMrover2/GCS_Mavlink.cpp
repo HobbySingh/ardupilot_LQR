@@ -75,23 +75,18 @@ MAV_STATE GCS_MAVLINK_Rover::system_status() const
     return MAV_STATE_ACTIVE;
 }
 
-void GCS_MAVLINK_Rover::get_sensor_status_flags(uint32_t &present,
-                                                uint32_t &enabled,
-                                                uint32_t &health)
+void GCS_MAVLINK_Rover::send_nav_controller_output() const
 {
-    rover.update_sensor_status_flags();
+    if (!rover.control_mode->is_autopilot_mode()) {
+        return;
+    }
 
-    present = rover.control_sensors_present;
-    enabled = rover.control_sensors_enabled;
-    health = rover.control_sensors_health;
-}
+    const Mode *control_mode = rover.control_mode;
 
-void Rover::send_nav_controller_output(mavlink_channel_t chan)
-{
     mavlink_msg_nav_controller_output_send(
         chan,
         0,  // roll
-        degrees(g2.attitude_control.get_desired_pitch()),
+        degrees(rover.g2.attitude_control.get_desired_pitch()),
         control_mode->nav_bearing(),
         control_mode->wp_bearing(),
         MIN(control_mode->get_distance_to_destination(), UINT16_MAX),
@@ -317,11 +312,6 @@ bool GCS_MAVLINK_Rover::try_send_message(enum ap_message id)
     }
 
     switch (id) {
-
-    case MSG_NAV_CONTROLLER_OUTPUT:
-        CHECK_PAYLOAD_SIZE(NAV_CONTROLLER_OUTPUT);
-        rover.send_nav_controller_output(chan);
-        break;
 
     case MSG_SERVO_OUT:
         CHECK_PAYLOAD_SIZE(RC_CHANNELS_SCALED);
@@ -1068,6 +1058,19 @@ void GCS_MAVLINK_Rover::handleMessage(mavlink_message_t* msg)
         break;
     }  // end switch
 }  // end handle mavlink
+
+uint64_t GCS_MAVLINK_Rover::capabilities() const
+{
+    return (MAV_PROTOCOL_CAPABILITY_MISSION_FLOAT |
+            MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT |
+            MAV_PROTOCOL_CAPABILITY_MISSION_INT |
+            MAV_PROTOCOL_CAPABILITY_COMMAND_INT |
+            MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_LOCAL_NED |
+            MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_GLOBAL_INT |
+            MAV_PROTOCOL_CAPABILITY_SET_ATTITUDE_TARGET |
+            MAV_PROTOCOL_CAPABILITY_COMPASS_CALIBRATION |
+            GCS_MAVLINK::capabilities());
+}
 
 /*
  *  a delay() callback that processes MAVLink packets. We set this as the

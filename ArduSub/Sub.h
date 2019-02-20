@@ -475,10 +475,6 @@ private:
     void rotate_body_frame_to_NE(float &x, float &y);
     void gcs_send_heartbeat(void);
     void send_heartbeat(mavlink_channel_t chan);
-    void get_sensor_status_flags(uint32_t &control_sensors_present,
-                                 uint32_t &control_sensors_enabled,
-                                 uint32_t &control_sensors_health);
-    void send_nav_controller_output(mavlink_channel_t chan);
 #if RPM_ENABLED == ENABLED
     void send_rpm(mavlink_channel_t chan);
     void rpm_update();
@@ -661,7 +657,6 @@ private:
 
     void auto_spline_start(const Location& destination, bool stopped_at_start, AC_WPNav::spline_segment_end_type seg_end_type, const Location& next_destination);
     void log_init(void);
-    void init_capabilities(void);
     void accel_cal_update(void);
 
     void failsafe_leak_check();

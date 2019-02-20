@@ -39,6 +39,8 @@ protected:
 
     bool set_home_to_current_location(bool lock) override WARN_IF_UNUSED;
     bool set_home(const Location& loc, bool lock) override WARN_IF_UNUSED;
+    void send_nav_controller_output() const override;
+    uint64_t capabilities() const override;
 
 private:
 
@@ -50,8 +52,6 @@ private:
     bool try_send_message(enum ap_message id) override;
 
     bool vehicle_initialised() const override;
-
-    void get_sensor_status_flags(uint32_t &present, uint32_t &enabled, uint32_t &health);
 
     void packetReceived(const mavlink_status_t &status,
                         mavlink_message_t &msg) override;

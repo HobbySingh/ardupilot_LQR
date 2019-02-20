@@ -100,9 +100,6 @@ private:
 
     // q1 multiplicative factor
     AP_Int16 _q1_val;
-    
-    // q1 square limit
-    AP_Int16 _q1_lim;
 
     uint32_t _last_update_waypoint_us;
     bool _data_is_stale = true;
