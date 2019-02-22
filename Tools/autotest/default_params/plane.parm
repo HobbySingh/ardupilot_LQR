@@ -50,7 +50,7 @@ FLTMODE5        2
 FLTMODE6        0
 FLTMODE_CH      8
 WP_LOITER_RAD   80
-WP_RADIUS       50
+WP_RADIUS       10
 RLL2SRV_D        0.2
 RLL2SRV_I        0.3
 RLL2SRV_P        2.5
@@ -60,7 +60,8 @@ PTCH2SRV_D       0.2
 PTCH2SRV_I       0.3
 PTCH2SRV_P       2.5
 PTCH2SRV_RLL     1
-NAVL1_PERIOD     15
+NAVL1_PERIOD     8
+NAV_CONTROLLER   2
 ACRO_LOCKING     1
 # we need small INS_ACC offsets so INS is recognised as being calibrated
 INS_ACCOFFS_X   0.001

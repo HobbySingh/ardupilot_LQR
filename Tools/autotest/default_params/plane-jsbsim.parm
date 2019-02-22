@@ -54,7 +54,7 @@ FLTMODE5        2
 FLTMODE6        0
 FLTMODE_CH      8
 WP_LOITER_RAD   80
-WP_RADIUS       50
+WP_RADIUS       10
 RLL2SRV_D        0.2
 RLL2SRV_I        0.3
 RLL2SRV_P        2.5

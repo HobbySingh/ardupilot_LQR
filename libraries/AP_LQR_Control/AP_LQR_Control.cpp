@@ -17,14 +17,14 @@ const AP_Param::GroupInfo AP_LQR_Control::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO_FRAME("LIM_BANK",   1, AP_LQR_Control, _loiter_bank_limit, 0.0f, AP_PARAM_FRAME_PLANE),
 
-    // @Param: MAX_XTRACK
-    // @DisplayName: LQR maximum allowed Crosstrack error
-    // @Description: Maximum allowed crosstrack error(in centimeters) for LQR. A very small value can lead to high frequency of oscillations. A very large value leads to slow convergence to expected path.
-    // @Range: 400 10000
-    // @Units: cm
-    // @Increment: 20
+    // @Param: K
+    // @DisplayName: Exponential Gain
+    // @Description: Exponential gain for computing Q1. A very high value can lead to high frequency of oscillations. A very small value leads to slow convergence to expected path.
+    // @Range: 0 100
+    // @Units: 
+    // @Increment: 10
     // @User: Advanced
-    AP_GROUPINFO("MAX_XTRCK",   2, AP_LQR_Control, _max_xtrack, 50),
+    AP_GROUPINFO("K",   2, AP_LQR_Control, _k_val, 1),
 
     // @Param: Q2_VAL
     // @DisplayName: VALUE of Q2 squared
@@ -32,7 +32,7 @@ const AP_Param::GroupInfo AP_LQR_Control::var_info[] = {
     // @Range: 1 10000
     // @Increment: 10
     // @User: Advanced
-    AP_GROUPINFO("Q2_VAL",   3, AP_LQR_Control, _q2_val, 50),
+    AP_GROUPINFO("Q2_VAL",   3, AP_LQR_Control, _q2_val, 100),
 
     // @Param: Q1_VAL
     // @DisplayName: VALUE of Q1
@@ -246,7 +246,8 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
     _crosstrack_error=- _crosstrack_error;
     
     //Caluclate adaptive gains
-    float q1= sqrtf(float((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
+    //float q1= sqrtf(float((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
+    float q1 = sqrtf(float(exp((_k_val*0.01)*abs(_crosstrack_error))));
     
     if(_q1_val != 0)
     {
@@ -258,7 +259,7 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
     float si_p = (get_bearing_cd(prev_WP,next_WP))*0.01;
     float temp_sin=sinf(radians(si - si_p));
     float v_d= groundSpeed * temp_sin;
-    
+        
     //Compute lateral acceleration based on current state and adaptive gains
     float u =  - ((q1*_crosstrack_error)+(sqrtf((float)((_q2_val*0.01)+(2*q1)))*v_d));
     
@@ -303,7 +304,8 @@ void AP_LQR_Control::update_loiter(const struct Location &center_WP, float radiu
     // update _target_bearing_cd
     _target_bearing_cd = get_bearing_cd(center_WP,_current_loc);
     //Compute adaptive gains
-    float q1= sqrtf((float)((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
+    //float q1= sqrtf((float)((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
+    float q1 = sqrtf(float(exp((_k_val*0.01)*_crosstrack_error)));
     
     if(_q1_val != 0)
     {

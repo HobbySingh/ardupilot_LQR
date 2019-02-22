@@ -92,8 +92,8 @@ private:
     Trajectory tracking LQR parameters
     */
     
-    // maximum permissible cross-track
-    AP_Int16 _max_xtrack;
+    // exponential gain
+    AP_Int16 _k_val;
     
     // q2 multiplicative factor
     AP_Int16 _q2_val;
