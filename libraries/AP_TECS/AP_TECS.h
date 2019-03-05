@@ -45,6 +45,11 @@ public:
     // Should be called at 50Hz or greater
     void update_50hz(void) override;
 
+
+    void set_gamma_p(float gam) {
+        _gamma_p = gam;
+    }
+    
     // Update the control loop calculations
     void update_pitch_throttle(int32_t hgt_dem_cm,
                                int32_t EAS_dem_cm,
@@ -167,6 +172,8 @@ private:
     AP_Int8  _pitch_min;
     AP_Int8  _land_pitch_max;
     AP_Float _maxSinkRate_approach;
+    AP_Int8 _LQR_3D;
+    AP_Float _k;
 
     // temporary _pitch_max_limit. Cleared on each loop. Clear when >= 90
     int8_t _pitch_max_limit = 90;
@@ -182,6 +189,8 @@ private:
 
     // estimated climb rate (m/s)
     float _climb_rate;
+
+    float _dist;
 
     /*
       a filter to estimate climb rate if we don't have it from the EKF
@@ -297,6 +306,7 @@ private:
     float _SKE_est;
     float _SPEdot;
     float _SKEdot;
+    float _gamma_p;
 
     // Specific energy error quantities
     float _STE_error;
@@ -371,5 +381,10 @@ private:
 
     // current time constant
     float timeConstant(void) const;
+
+    float get_gamma(float vz);
+
+    // longitudinal acceleration
+    float _long_acc;
 };
 

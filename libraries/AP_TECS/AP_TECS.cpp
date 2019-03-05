@@ -238,6 +238,22 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
     // @Values: 0:Disable,1:Enable
     // @User: Advanced
     AP_GROUPINFO("SYNAIRSPEED", 27, AP_TECS, _use_synthetic_airspeed, 0),
+
+    // @Param: LQR_3D
+    // @DisplayName: Pitch damping gain when landing
+    // @Description: This is the damping gain for the pitch demand loop during landing. Increase to add damping  to correct for oscillations in speed and height. If set to 0 then TECS_PTCH_DAMP will be used instead.
+    // @Range: 0 1
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("LQR_3D", 28, AP_TECS, _LQR_3D, 0),
+
+    // @Param: KGAIN
+    // @DisplayName: Enable the use of synthetic airspeed
+    // @Description: This enable the use of synthetic airspeed for aircraft that don't have a real airspeed sensor. This is useful for development testing where the user is aware of the considerable limitations of the synthetic airspeed system, such as very poor estimates when a wind estimate is not accurate. Do not enable this option unless you fully understand the limitations of a synthetic airspeed estimate.
+    // @Range: 0 0.5
+    // @Increment: 0.001
+    // @User: Advanced
+    AP_GROUPINFO("KGain", 29, AP_TECS, _k, 0.01),
     
     AP_GROUPEND
 };
@@ -257,6 +273,13 @@ const AP_Param::GroupInfo AP_TECS::var_info[] = {
  *    of easy to measure aircraft performance data
  *
  */
+
+float AP_TECS::get_gamma(float V_z)
+{
+    Vector2f _groundspeed_vector = _ahrs.groundspeed_vector();
+    return atan2f(V_z, _groundspeed_vector.length());
+}
+
 
 void AP_TECS::update_50hz(void)
 {
@@ -867,18 +890,30 @@ void AP_TECS::_update_pitch(void)
     // Calculate pitch demand from specific energy balance signals
     _pitch_dem_unc = (temp + _integSEB_state) / gainInv;
 
-    float dist = _hgt_dem_adj - _height;
-    float dist_dot = _climb_rate;
-
-    float long_acc = dist - 1.732* dist_dot;
-
     float gs_xy = _vel_xy.length();
 
-    _pitch_dem_unc = _last_pitch_dem + _DT * long_acc/gs_xy;
+    _long_acc = (_pitch_dem_unc - _last_pitch_dem) * gs_xy / _DT;
 
-    //_pitch_dem_unc = 0;
+    _dist = _height - _hgt_dem_adj;
 
-    hal.console->printf("long acc : %f \n", long_acc);
+    if (_LQR_3D == 1){
+
+    float v = sqrtf(gs_xy*gs_xy + _climb_rate*_climb_rate);
+    float gamma = get_gamma(_climb_rate);
+    float dist_dot = v * sinf(gamma - _gamma_p);
+
+    float q1 = sqrtf(exp(_k*fabs(_dist)));
+    float q2 = sqrtf(1+2*q1);
+
+    _long_acc = - q1*_dist - q2* dist_dot;
+
+    float pitch_dot = _long_acc / (v * cosf(gamma - _gamma_p));
+
+    _pitch_dem_unc = _last_pitch_dem + _DT * pitch_dot;
+
+    hal.console->printf("h_dot: %f, \t gamma: %f,\t gamma_p: %f \n",_climb_rate, gamma, _gamma_p);
+
+    }
 
     // Constrain pitch demand
     _pitch_dem = constrain_float(_pitch_dem_unc, _PITCHminf, _PITCHmaxf);
@@ -900,6 +935,7 @@ void AP_TECS::_update_pitch(void)
     _pitch_dem = constrain_float(_pitch_dem, _PITCHminf, _PITCHmaxf);
 
     _last_pitch_dem = _pitch_dem;
+
 }
 
 void AP_TECS::_initialise_states(int32_t ptchMinCO_cd, float hgt_afe)
@@ -920,6 +956,8 @@ void AP_TECS::_initialise_states(int32_t ptchMinCO_cd, float hgt_afe)
         _flags.underspeed        = false;
         _flags.badDescent        = false;
         _flags.reached_speed_takeoff = false;
+        _long_acc = 0;
+        _dist = 0;
         _DT                = 0.1f; // when first starting TECS, use a
         // small time constant
     }
@@ -1120,5 +1158,9 @@ void AP_TECS::update_pitch_throttle(int32_t hgt_dem_cm,
                                            (double)logging.SPE_error,
                                            (double)logging.SEB_delta,
                                            (double)load_factor);
+    AP::logger().Write("TEC3", "TimeUS,LgAcc,Err", "Qff",
+                                            now,
+                                            (double)_long_acc,
+                                            (double)_dist);
 }
 

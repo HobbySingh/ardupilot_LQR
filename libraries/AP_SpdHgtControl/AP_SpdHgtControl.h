@@ -64,6 +64,8 @@ public:
 	// set path_proportion accessor
     virtual void set_path_proportion(float path_proportion) = 0;
 
+    virtual void set_gamma_p(float gam) = 0;
+
 	// add new controllers to this enum. Users can then
 	// select which controller to use by setting the
 	// SPDHGT_CONTROLLER parameter

@@ -94,6 +94,9 @@ void Plane::navigate()
     auto_state.wp_proportion = location_path_proportion(current_loc, 
                                                         prev_WP_loc, next_WP_loc);
     SpdHgt_Controller->set_path_proportion(auto_state.wp_proportion);
+    float alt_wp_change = (next_WP_loc.alt-prev_WP_loc.alt)/100;
+    SpdHgt_Controller->set_gamma_p(atan2f(alt_wp_change,get_distance(prev_WP_loc,next_WP_loc)));
+    //hal.console->printf("alt_change: %d , %d\n",next_WP_loc.alt, next_WP_loc.lat);
 
     // update total loiter angle
     loiter_angle_update();
