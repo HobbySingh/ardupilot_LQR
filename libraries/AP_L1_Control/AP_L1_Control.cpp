@@ -81,6 +81,7 @@ int32_t AP_L1_Control::nav_roll_cd(void) const
     float ret;
     ret = cosf(_ahrs.pitch)*degrees(atanf(_latAccDem * 0.101972f) * 100.0f); // 0.101972 = 1/9.81
     ret = constrain_float(ret, -9000, 9000);
+
     return ret;
 }
 
@@ -327,6 +328,18 @@ void AP_L1_Control::update_waypoint(const struct Location &prev_WP, const struct
     _bearing_error = Nu; // bearing error angle (radians), +ve to left of track
 
     _data_is_stale = false; // status are correctly updated with current waypoint data
+
+    AP::logger().Write("NAVC", "TimeUS,Xtrk,LAcc,Lat,Lon,Alt,WPLat,WPLon,WPAlt,Mode", "QffLLeLLeh",
+                        AP_HAL::micros64(),
+                        (double)_crosstrack_error,
+                        (double)_latAccDem,
+                        _current_loc.lat,
+                        _current_loc.lng,
+                        _current_loc.alt,                        
+                        next_WP.lat,
+                        next_WP.lng,
+                        next_WP.alt,
+                        (int16_t)1);
 }
 
 // update L1 control for loitering
@@ -439,6 +452,18 @@ void AP_L1_Control::update_loiter(const struct Location &center_WP, float radius
     }
 
     _data_is_stale = false; // status are correctly updated with current waypoint data
+
+    AP::logger().Write("NAVC", "TimeUS,Xtrk,LAcc,Lat,Lon,Alt,WPLat,WPLon,WPAlt,Mode", "QffLLeLLeh",
+                        AP_HAL::micros64(),
+                        (double)_crosstrack_error,
+                        (double)_latAccDem,
+                        _current_loc.lat,
+                        _current_loc.lng,
+                        _current_loc.alt,                        
+                        center_WP.lat,
+                        center_WP.lng,
+                        center_WP.alt,
+                        (int16_t)2);
 }
 
 
