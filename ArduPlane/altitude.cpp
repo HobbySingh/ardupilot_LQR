@@ -26,7 +26,7 @@
 void Plane::adjust_altitude_target()
 {
     Location target_location;
-
+    target_altitude.offset_cm = next_WP_loc.alt - prev_WP_loc.alt;
     if (control_mode == FLY_BY_WIRE_B ||
         control_mode == CRUISE) {
         return;
@@ -44,14 +44,17 @@ void Plane::adjust_altitude_target()
         // once we reach a loiter target then lock to the final
         // altitude target
         set_target_altitude_location(next_WP_loc);
-    } else if (target_altitude.offset_cm != 0 && 
-               !location_passed_point(current_loc, prev_WP_loc, next_WP_loc)) {
+    } else if (target_altitude.offset_cm != 0)
+    // && !location_passed_point(current_loc, prev_WP_loc, next_WP_loc)) 
+    {
         // control climb/descent rate
-        set_target_altitude_proportion(next_WP_loc, 1.0f-auto_state.wp_proportion);
+        //hal.console->printf("proportion");
+        set_target_altitude_linear(current_loc,prev_WP_loc,next_WP_loc);
 
         // stay within the range of the start and end locations in altitude
         constrain_target_altitude_location(next_WP_loc, prev_WP_loc);
     } else {
+        hal.console->printf("offset_cm : %d, passed : %d \n",target_altitude.offset_cm, location_passed_point(current_loc, prev_WP_loc, next_WP_loc));
         set_target_altitude_location(next_WP_loc);
     }
 
@@ -186,9 +189,11 @@ void Plane::set_target_altitude_current_adjusted(void)
 void Plane::set_target_altitude_location(const Location &loc)
 {
     target_altitude.amsl_cm = loc.alt;
+
     if (loc.relative_alt) {
         target_altitude.amsl_cm += home.alt;
     }
+
 #if AP_TERRAIN_AVAILABLE
     /*
       if this location has the terrain_alt flag set and we know the
@@ -208,6 +213,35 @@ void Plane::set_target_altitude_location(const Location &loc)
     }
 #endif
 }
+
+void Plane::set_target_altitude_linear(const Location &current, const Location &prev, const Location &next)
+{
+    float proportion = location_path_proportion(current,prev,next);
+    target_altitude.amsl_cm = (next.alt - prev.alt)*proportion + prev.alt;
+    if (next.relative_alt) {
+        target_altitude.amsl_cm += home.alt;
+    }
+
+#if AP_TERRAIN_AVAILABLE
+    /*
+      if this location has the terrain_alt flag set and we know the
+      terrain altitude of our current location then treat it as a
+      terrain altitude
+     */
+    float height;
+    if (next.terrain_alt && terrain.height_above_terrain(height, true)) {
+        target_altitude.terrain_following = true;
+        target_altitude.terrain_alt_cm = next.alt;
+        if (!next.relative_alt) {
+            // it has home added, remove it
+            target_altitude.terrain_alt_cm -= home.alt;
+        }
+    } else {
+        target_altitude.terrain_following = false;
+    }
+#endif    
+}
+
 
 /*
   return relative to home target altitude in centimeters. Used for

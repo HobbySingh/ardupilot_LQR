@@ -827,6 +827,7 @@ private:
     void set_target_altitude_current(void);
     void set_target_altitude_current_adjusted(void);
     void set_target_altitude_location(const Location &loc);
+    void set_target_altitude_linear(const Location &loc1, const Location &loc2, const Location &loc3);
     int32_t relative_target_altitude_cm(void);
     void change_target_altitude(int32_t change_cm);
     void set_target_altitude_proportion(const Location &loc, float proportion);

@@ -902,7 +902,7 @@ void AP_TECS::_update_pitch(void)
     float gamma = get_gamma(_climb_rate);
     float dist_dot = v * sinf(gamma - _gamma_p);
 
-    float q1 = sqrtf(exp(_k*fabs(_dist)));
+    float q1 = sqrtf(float(expf(_k*fabs(_dist))));
     float q2 = sqrtf(1+2*q1);
 
     _long_acc = - q1*_dist - q2* dist_dot;
