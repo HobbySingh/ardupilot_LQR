@@ -54,7 +54,7 @@ void Plane::adjust_altitude_target()
         // stay within the range of the start and end locations in altitude
         constrain_target_altitude_location(next_WP_loc, prev_WP_loc);
     } else {
-        hal.console->printf("offset_cm : %d, passed : %d \n",target_altitude.offset_cm, location_passed_point(current_loc, prev_WP_loc, next_WP_loc));
+        //hal.console->printf("offset_cm : %d, passed : %d \n",target_altitude.offset_cm, location_passed_point(current_loc, prev_WP_loc, next_WP_loc));
         set_target_altitude_location(next_WP_loc);
     }
 

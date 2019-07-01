@@ -911,7 +911,7 @@ void AP_TECS::_update_pitch(void)
 
     _pitch_dem_unc = _last_pitch_dem + _DT * pitch_dot;
 
-    hal.console->printf("h_dot: %f, \t gamma: %f,\t gamma_p: %f \n",_climb_rate, gamma, _gamma_p);
+    //hal.console->printf("h_dot: %f, \t gamma: %f,\t gamma_p: %f \n",_climb_rate, gamma, _gamma_p);
 
     }
 

@@ -93,7 +93,7 @@ private:
     */
     
     // exponential gain
-    AP_Int16 _k_val;
+    AP_Float _k_val;
     
     // q2 multiplicative factor
     AP_Int16 _q2_val;
