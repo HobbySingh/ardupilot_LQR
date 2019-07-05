@@ -50,6 +50,13 @@ extern const AP_HAL::HAL& hal;
 #define DIGIT_TO_VAL(_x)        (_x - '0')
 #define hexdigit(x) ((x)>9?'A'+((x)-10):'0'+(x))
 
+AP_GPS_NMEA::AP_GPS_NMEA(AP_GPS &_gps, AP_GPS::GPS_State &_state, AP_HAL::UARTDriver *_port) :
+    AP_GPS_Backend(_gps, _state, _port)
+{
+    // this guarantees that _term is always null terminated
+    memset(_term, 0, sizeof(_term));
+}
+
 bool AP_GPS_NMEA::read(void)
 {
     int16_t numc;
@@ -238,7 +245,6 @@ bool AP_GPS_NMEA::_term_complete()
         if (checksum == _parity) {
             if (_gps_data_good) {
                 uint32_t now = AP_HAL::millis();
-                uint32_t lat_, long_;
                 switch (_sentence_type) {
                 case _GPS_SENTENCE_RMC:
                     _last_RMC_ms = now;
@@ -246,10 +252,6 @@ bool AP_GPS_NMEA::_term_complete()
                     //date                        = _new_date;
                     state.location.lat     = _new_latitude;
                     state.location.lng     = _new_longitude;
-                    lat_ = (uint32_t) (_new_latitude *100000);
-                    long_ = (uint32_t) (_new_longitude*100000);
-                    state.location.lat = (double) (lat_ /100000);
-                    state.location.lng = (double) (long_ / 100000);
                     state.ground_speed     = _new_speed*0.01f;
                     state.ground_course    = wrap_360(_new_course*0.01f);
                     make_gps_time(_new_date, _new_time * 10);

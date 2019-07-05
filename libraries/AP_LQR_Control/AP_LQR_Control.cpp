@@ -257,7 +257,7 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
 
     //Caluclate adaptive gains
     //float q1= sqrtf(float((_max_xtrack*0.01)/(fabsf((_max_xtrack*0.01)-_crosstrack_error))));
-    float q1 = sqrtf(float(exp((_k_val)*abs(_crosstrack_error))))*fabs(cos_term);
+    float q1 = sqrtf(float(exp((_k_val)*abs(_crosstrack_error))));//*fabs(cos_term);
     
     if(_q1_val != 0)
     {
@@ -267,7 +267,7 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
     float p12 = float(q1/fabs(cos_term));    
     //hal.console->printf("cos term :%f, si : %f, si_p : %f \n",cos_term,si,si_p);
     float p22 = sqrtf((float)(2*p12 + _q2_val*0.01))/(cos_term);
-    float u = -(_crosstrack_error*p12*cos_term + p22*v_d*cos_term);
+    //float u = -(_crosstrack_error*p12*cos_term + p22*v_d*cos_term);
 
     //hal.console->printf("p12 :%f, p22 : %f, u : %f \n",p12,p22,u);
     //hal.console->printf("xtrack :%f, vd : %f",_crosstrack_error,v_d);
@@ -282,9 +282,9 @@ void AP_LQR_Control::update_waypoint(const struct Location &prev_WP, const struc
 //            cos_term = float(0.00001);
     //}
     //Compute lateral acceleration based on current state and adaptive gains
-    //float u =  - ((q1*_crosstrack_error)+(sqrtf((float)((_q2_val*0.01)+(2*q1)))*v_d));
+    float u =  - ((q1*_crosstrack_error)+(sqrtf((float)((_q2_val*0.01)+(2*q1)))*v_d));
     
-    _latAccDem= u;
+    _latAccDem = u;
     _bearing_error = radians(si - si_p);
     _nav_bearing = radians(si_p);
     
